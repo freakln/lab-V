@@ -1,26 +1,36 @@
 import csv
-
+import time
 import requests
+
+inicio = time.time()
+names = []
+to_csv = []
 
 query_type = ['search', 'user', 'organization', 'repository']
 search_type = ['search', 'user', 'organization', 'repository']
 length = 0
-after = ' '
+after = ''
+headers = {"Authorization": "token 646bf7fcbcfe9f865a54d608aa50c1da151eb98b"}
+query = 'query{search(query:"stars:>100", type:REPOSITORY, first:10 %s ){' \
+        'pageInfo{hasNextPage endCursor}' \
+        'nodes{... ' \
+        'on Repository{' \
+        'nameWithOwner primaryLanguage{name} createdAt pullRequests(states:MERGED){totalCount}' \
+        ' updatedAt releases {totalCount} opened_issues: issues{totalCount} closed_issues: issues(states:CLOSED){totalCount}}}}}'
 
-query = 'query{search(query:"stars:>100", type:REPOSITORY, first:100' + after + '){' \
-                                                                                'pageInfo{hasNextPage endCursor}' \
-                                                                                'nodes{... ' \
-                                                                                'on Repository{' \
-                                                                                'nameWithOwner url createdAt}}}}'
 dado = ''
-print(query)
+cursor = ''
 have_next_page = True
-page = 1
-nodes = list()
-while have_next_page and page < 10:
-    request = requests.post('https://api.github.com/graphql', json={'query': query}, headers=headers)
-    print(request.status_code)
+page = 0
 
+mquery = query % after
+print(mquery)
+nodes = list()
+while have_next_page and page < 100:
+
+    request = requests.post('https://api.github.com/graphql', json={'query': mquery}, headers=headers)
+    print('page:' + str(page))
+    print(request.status_code)
     if request.status_code == 200:
         result = request.json()
 
@@ -28,12 +38,10 @@ while have_next_page and page < 10:
 
         have_next_page = result["data"]["search"]["pageInfo"]["hasNextPage"]
         page += 1
-        cursor = result["data"]["search"]["pageInfo"]["endCursor"]
-        after = ", after:{}".format(cursor)
-    print(nodes)
+        print(result["data"]["search"]["pageInfo"]["endCursor"])
+        after = ', after:"' + result["data"]["search"]["pageInfo"]["endCursor"]+'"'
+        mquery = query % after
 
-names = []
-to_csv = []
 
 for d in nodes:
     row = {}
@@ -43,8 +51,10 @@ for d in nodes:
         row.update({keys: d[keys]})
     to_csv.append(row)
 
-with open('resultados.csv', mode='w', encoding='utf-8', newline='') as csvfile:
+with open('resultado_2.csv', mode='w', encoding='utf-8', newline='') as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=names, delimiter=';')
     writer.writeheader()
     for i in to_csv:
         writer.writerow(i)
+
+print(time.time() - inicio)
